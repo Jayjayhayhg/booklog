@@ -35,8 +35,8 @@
   window.dispatchEvent(new Event('firebaseReady'));
 </script>
 
-<!-- Html5-QRCode (ZXing 대체) -->
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<!-- ZXing (바코드 디코딩) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/zxing-library/0.19.1/zxing.min.js"></script>
 
 <style>
 :root {
@@ -794,7 +794,7 @@ header {
   color: var(--gold);
 }
 
-/* ── Camera (Html5-QRCode) ── */
+/* ── Camera ── */
 .camera-wrap {
   position: relative;
   background: #000;
@@ -804,19 +804,7 @@ header {
   display: none;
 }
 .camera-wrap.show { display: block; }
-/* html5-qrcode가 내부에 video 생성 */
-#qr-reader {
-  width: 100% !important;
-  border: none !important;
-}
-#qr-reader video { width: 100% !important; border-radius: 10px; }
-#qr-reader img { display: none !important; }
-/* 스캔 오버레이 */
-.scan-overlay {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
+.camera-wrap video { width: 100%; height: 100%; object-fit: cover; }
 .scan-line {
   position: absolute;
   left: 10%; right: 10%;
@@ -1182,16 +1170,22 @@ textarea.input-field { width: 100%; height: 76px; resize: none; line-height: 1.6
     <div class="modal-handle"></div>
     <div class="modal-title">📚 책 추가하기</div>
 
-    <button class="btn-camera" id="cameraBtn" onclick="toggleCamera()">📷 카메라로 바코드 스캔</button>
+    <!-- iOS: 사진으로 바코드 인식 -->
+    <label class="btn-camera" id="iosCameraBtn" style="display:none;justify-content:center;">
+      📷 카메라로 바코드 스캔
+      <input type="file" id="iosCameraInput" accept="image/*" capture="environment" style="display:none;" onchange="handleIOSCamera(this)">
+    </label>
+
+    <!-- 안드로이드/PC: 실시간 스캔 -->
+    <button class="btn-camera" id="cameraBtn" onclick="toggleCamera()" style="display:none;">📷 카메라로 바코드 스캔</button>
+
     <div class="camera-wrap" id="cameraWrap">
-      <div id="qr-reader"></div>
-      <div class="scan-overlay">
-        <div class="scan-line"></div>
-        <div class="cam-corner tl"></div>
-        <div class="cam-corner tr"></div>
-        <div class="cam-corner bl"></div>
-        <div class="cam-corner br"></div>
-      </div>
+      <video id="video" playsinline autoplay muted></video>
+      <div class="scan-line"></div>
+      <div class="cam-corner tl"></div>
+      <div class="cam-corner tr"></div>
+      <div class="cam-corner bl"></div>
+      <div class="cam-corner br"></div>
     </div>
 
     <!-- 검색 방법 탭 -->
@@ -1342,7 +1336,9 @@ let currentBook = null;
 let currentCat = '';
 let currentStar = 0;
 let cameraActive = false;
-let html5QRCode = null;
+let codeReader = null;
+let currentStream = null;
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 
 // 수정 기능 상태
 let editingBookId = null;
@@ -1859,44 +1855,82 @@ function filterCat(cat, el) {
 }
 
 // ══════════════════════════════════════════
-// CAMERA — Html5-QRCode
+// CAMERA
+// iOS: 파일 input → 이미지 → ZXing 디코딩
+// 그 외: getUserMedia 실시간 스캔
 // ══════════════════════════════════════════
-async function toggleCamera() {
-  if (cameraActive) { await stopCamera(); return; }
-  document.getElementById('cameraBtn').textContent = '⏹ 스캔 중지';
-  document.getElementById('cameraBtn').classList.add('scanning');
-  document.getElementById('cameraWrap').classList.add('show');
-  cameraActive = true;
 
+// 페이지 로드 시 버튼 표시 분기
+(function initCameraBtn() {
+  function show() {
+    if (isIOS) {
+      document.getElementById('iosCameraBtn').style.display = 'flex';
+    } else {
+      document.getElementById('cameraBtn').style.display = 'flex';
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', show);
+  } else {
+    show();
+  }
+})();
+
+// ── iOS: 사진에서 바코드 읽기 ──
+async function handleIOSCamera(input) {
+  const file = input.files[0];
+  if (!file) return;
+  setStatus('🔍 바코드 인식 중...');
+  const imgUrl = URL.createObjectURL(file);
   try {
-    html5QRCode = new Html5Qrcode("qr-reader");
-    await html5QRCode.start(
-      { facingMode: "environment" },
-      { fps: 10, qrbox: { width: 240, height: 140 } },
-      (decodedText) => {
-        // 바코드 인식 성공
-        document.getElementById('isbnInput').value = decodedText;
-        stopCamera();
-        switchSearchTab('isbn');
-        searchByISBN();
-      },
-      () => {} // 인식 실패는 무시
-    );
+    const reader = new ZXing.BrowserMultiFormatReader();
+    const result = await reader.decodeFromImageUrl(imgUrl);
+    if (result) {
+      document.getElementById('isbnInput').value = result.getText();
+      switchSearchTab('isbn');
+      setStatus('✅ 바코드 인식 성공!');
+      await searchByISBN();
+    }
+  } catch(e) {
+    setStatus('⚠️ 바코드를 인식하지 못했어요. ISBN을 직접 입력해주세요.');
+  }
+  URL.revokeObjectURL(imgUrl);
+  input.value = '';
+}
+
+// ── 안드로이드/PC: 실시간 스캔 ──
+async function toggleCamera() {
+  if (cameraActive) { stopCamera(); return; }
+  try {
+    document.getElementById('cameraBtn').textContent = '⏹ 스캔 중지';
+    document.getElementById('cameraBtn').classList.add('scanning');
+    document.getElementById('cameraWrap').classList.add('show');
+    currentStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    document.getElementById('video').srcObject = currentStream;
+    cameraActive = true;
+    if (typeof ZXing !== 'undefined') {
+      codeReader = new ZXing.BrowserMultiFormatReader();
+      codeReader.decodeFromVideoDevice(null, 'video', (result, err) => {
+        if (result) {
+          document.getElementById('isbnInput').value = result.getText();
+          stopCamera();
+          switchSearchTab('isbn');
+          searchByISBN();
+        }
+      });
+    } else {
+      setStatus('ISBN을 직접 입력해주세요.');
+    }
   } catch(e) {
     setStatus('카메라 접근 실패. ISBN을 직접 입력해주세요.');
-    await stopCamera();
+    stopCamera();
   }
 }
 
-async function stopCamera() {
+function stopCamera() {
   cameraActive = false;
-  if (html5QRCode) {
-    try {
-      if (html5QRCode.isScanning) await html5QRCode.stop();
-      html5QRCode.clear();
-    } catch(e) {}
-    html5QRCode = null;
-  }
+  if (codeReader) { try { codeReader.reset(); } catch(e){} codeReader = null; }
+  if (currentStream) { currentStream.getTracks().forEach(t => t.stop()); currentStream = null; }
   document.getElementById('cameraWrap').classList.remove('show');
   document.getElementById('cameraBtn').textContent = '📷 카메라로 바코드 스캔';
   document.getElementById('cameraBtn').classList.remove('scanning');
