@@ -36,8 +36,6 @@
 </script>
 
 <!-- ZXing (바코드 디코딩) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/zxing-library/0.19.1/zxing.min.js"></script>
-
 <style>
 :root {
   --bg: #0F0E0C;
@@ -549,6 +547,19 @@ header {
   justify-content: space-between;
   margin-bottom: 20px;
 }
+.dl-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-sub);
+  font-size: 12px;
+  font-family: 'Noto Sans KR', sans-serif;
+  font-weight: 600;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.dl-btn:hover { border-color: var(--gold); color: var(--gold); }
 .month-nav {
   display: flex;
   align-items: center;
@@ -794,57 +805,7 @@ header {
   color: var(--gold);
 }
 
-/* ── Camera ── */
-.camera-wrap {
-  position: relative;
-  background: #000;
-  border-radius: 12px;
-  overflow: hidden;
-  margin-bottom: 12px;
-  display: none;
-}
-.camera-wrap.show { display: block; }
-.camera-wrap video { width: 100%; height: 100%; object-fit: cover; }
-.scan-line {
-  position: absolute;
-  left: 10%; right: 10%;
-  height: 2px;
-  background: var(--gold);
-  box-shadow: 0 0 8px var(--gold);
-  animation: scanAnim 2s ease-in-out infinite;
-}
-@keyframes scanAnim {
-  0%, 100% { top: 20%; }
-  50% { top: 75%; }
-}
-.cam-corner {
-  position: absolute;
-  width: 20px; height: 20px;
-  border-color: var(--gold);
-  border-style: solid;
-  border-width: 0;
-}
-.cam-corner.tl { top:12px; left:12px; border-top-width:3px; border-left-width:3px; }
-.cam-corner.tr { top:12px; right:12px; border-top-width:3px; border-right-width:3px; }
-.cam-corner.bl { bottom:12px; left:12px; border-bottom-width:3px; border-left-width:3px; }
-.cam-corner.br { bottom:12px; right:12px; border-bottom-width:3px; border-right-width:3px; }
 
-.btn-camera {
-  width: 100%;
-  background: var(--surface2);
-  border: 1px dashed var(--border);
-  border-radius: 10px;
-  padding: 13px;
-  color: var(--text-sub);
-  font-size: 14px;
-  font-family: 'Noto Sans KR', sans-serif;
-  cursor: pointer;
-  transition: all 0.2s;
-  margin-bottom: 12px;
-  display: flex; align-items: center; justify-content: center;
-  gap: 8px;
-}
-.btn-camera:hover, .btn-camera.scanning { border-color: var(--gold); color: var(--gold); background: var(--gold-pale); }
 
 /* ── Inputs ── */
 .input-label {
@@ -1123,6 +1084,7 @@ textarea.input-field { width: 100%; height: 76px; resize: none; line-height: 1.6
         <div class="current-month" id="currentMonthLabel"></div>
         <button class="month-nav-btn" onclick="changeMonth(1)">›</button>
       </div>
+      <button class="dl-btn" onclick="downloadCSV()">⬇ CSV 저장</button>
     </div>
 
     <!-- 읽기 목표 카드 -->
@@ -1170,45 +1132,27 @@ textarea.input-field { width: 100%; height: 76px; resize: none; line-height: 1.6
     <div class="modal-handle"></div>
     <div class="modal-title">📚 책 추가하기</div>
 
-    <!-- iOS: 사진으로 바코드 인식 -->
-    <label class="btn-camera" id="iosCameraBtn" style="display:none;justify-content:center;">
-      📷 카메라로 바코드 스캔
-      <input type="file" id="iosCameraInput" accept="image/*" capture="environment" style="display:none;" onchange="handleIOSCamera(this)">
-    </label>
-
-    <!-- 안드로이드/PC: 실시간 스캔 -->
-    <button class="btn-camera" id="cameraBtn" onclick="toggleCamera()" style="display:none;">📷 카메라로 바코드 스캔</button>
-
-    <div class="camera-wrap" id="cameraWrap">
-      <video id="video" playsinline autoplay muted></video>
-      <div class="scan-line"></div>
-      <div class="cam-corner tl"></div>
-      <div class="cam-corner tr"></div>
-      <div class="cam-corner bl"></div>
-      <div class="cam-corner br"></div>
+    <!-- 검색 방법 탭: 제목 기본, ISBN 보조 -->
+    <div style="display:flex;gap:6px;margin-bottom:12px;">
+      <button id="tab-title" onclick="switchSearchTab('title')" style="flex:1;padding:10px;border-radius:8px;border:1px solid var(--gold);background:var(--gold);color:#0F0E0C;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;">🔍 제목 검색</button>
+      <button id="tab-isbn" onclick="switchSearchTab('isbn')" style="flex:1;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text-muted);font-size:13px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif;">🔢 ISBN</button>
     </div>
 
-    <!-- 검색 방법 탭 -->
-    <div style="display:flex;gap:6px;margin-bottom:10px;">
-      <button id="tab-isbn" onclick="switchSearchTab('isbn')" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--gold);background:var(--gold);color:#0F0E0C;font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;">🔢 ISBN</button>
-      <button id="tab-title" onclick="switchSearchTab('title')" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text-muted);font-size:12px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif;">🔍 제목 검색</button>
-    </div>
-
-    <!-- ISBN 검색 -->
-    <div id="search-isbn">
-      <div class="input-label">ISBN 입력</div>
-      <div class="isbn-row">
-        <input class="input-field" id="isbnInput" type="number" placeholder="바코드 번호 13자리">
-        <button class="btn-search" onclick="searchByISBN()">검색</button>
-      </div>
-    </div>
-
-    <!-- 제목 검색 -->
-    <div id="search-title" style="display:none">
+    <!-- 제목 검색 (기본) -->
+    <div id="search-title">
       <div class="input-label">책 제목</div>
       <div class="isbn-row">
         <input class="input-field" id="titleInput" type="text" placeholder="예) 해리포터, 수학의 정석">
         <button class="btn-search" onclick="searchByTitle()">검색</button>
+      </div>
+    </div>
+
+    <!-- ISBN 검색 (보조) -->
+    <div id="search-isbn" style="display:none">
+      <div class="input-label">ISBN 입력</div>
+      <div class="isbn-row">
+        <input class="input-field" id="isbnInput" type="number" placeholder="바코드 번호 13자리">
+        <button class="btn-search" onclick="searchByISBN()">검색</button>
       </div>
     </div>
 
@@ -1335,10 +1279,7 @@ let bookSearchQuery = '';
 let currentBook = null;
 let currentCat = '';
 let currentStar = 0;
-let cameraActive = false;
-let codeReader = null;
-let currentStream = null;
-const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
 
 // 수정 기능 상태
 let editingBookId = null;
@@ -1729,6 +1670,81 @@ function jumpToMonth(m) {
   renderYearlyGrid();
 }
 
+// ══════════════════════════════════════════
+// 다운로드 (CSV / Excel)
+// ══════════════════════════════════════════
+function getMonthBooks() {
+  const profileBooks = getProfileBooks();
+  return profileBooks.filter(b => {
+    if (!b.createdAt) return false;
+    const d = new Date(b.createdAt);
+    return d.getFullYear() === viewYear && d.getMonth() === viewMonth;
+  });
+}
+
+function booksToRows(monthBooks) {
+  const header = ['제목', '저자', '출판사', '카테고리', '쪽수', '별점', '날짜', '메모'];
+  const rows = monthBooks.map(b => [
+    b.title || '',
+    b.author || '',
+    b.publisher || '',
+    b.cat || '',
+    b.pages || 0,
+    b.star || 0,
+    b.dateLabel || '',
+    b.memo || ''
+  ]);
+  return [header, ...rows];
+}
+
+function downloadCSV() {
+  const monthBooks = getMonthBooks();
+  if (monthBooks.length === 0) { alert('이달에 기록된 책이 없어요.'); return; }
+
+  const rows = booksToRows(monthBooks);
+  const csv = rows.map(row =>
+    row.map(cell => {
+      const str = String(cell).replace(/"/g, '""');
+      return str.includes(',') || str.includes('\n') || str.includes('"') ? `"${str}"` : str;
+    }).join(',')
+  ).join('\n');
+
+  // BOM 추가 (엑셀에서 한글 깨짐 방지)
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const label = getCurrentProfileLabel();
+  triggerDownload(blob, `책장_${viewYear}년${viewMonth+1}월${label}.csv`);
+}
+
+
+
+function getCurrentProfileLabel() {
+  if (currentProfileId === 'all') return '';
+  const p = profiles.find(p => p.id === currentProfileId);
+  return p ? `_${p.name}` : '';
+}
+
+function escapeXml(str) {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+
+
+function triggerDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 function changeMonth(dir) {
   viewMonth += dir;
   if (viewMonth < 0) { viewMonth = 11; viewYear--; }
@@ -1854,112 +1870,7 @@ function filterCat(cat, el) {
   renderBookList();
 }
 
-// ══════════════════════════════════════════
-// CAMERA
-// iOS: 파일 input → 이미지 → ZXing 디코딩
-// 그 외: getUserMedia 실시간 스캔
-// ══════════════════════════════════════════
 
-// 페이지 로드 시 버튼 표시 분기
-(function initCameraBtn() {
-  function show() {
-    if (isIOS) {
-      document.getElementById('iosCameraBtn').style.display = 'flex';
-    } else {
-      document.getElementById('cameraBtn').style.display = 'flex';
-    }
-  }
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', show);
-  } else {
-    show();
-  }
-})();
-
-// ── iOS: 사진에서 바코드 읽기 ──
-async function handleIOSCamera(input) {
-  const file = input.files[0];
-  if (!file) return;
-  setStatus('🔍 바코드 인식 중...');
-
-  try {
-    // FileReader → base64 → Image → Canvas → ZXing 디코딩
-    const dataUrl = await new Promise((resolve, reject) => {
-      const fr = new FileReader();
-      fr.onload = e => resolve(e.target.result);
-      fr.onerror = reject;
-      fr.readAsDataURL(file);
-    });
-
-    const img = await new Promise((resolve, reject) => {
-      const i = new Image();
-      i.onload = () => resolve(i);
-      i.onerror = reject;
-      i.src = dataUrl;
-    });
-
-    // 큰 이미지 축소 (ZXing 안정성 향상)
-    const MAX = 1200;
-    let w = img.width, h = img.height;
-    if (w > MAX || h > MAX) {
-      const ratio = Math.min(MAX / w, MAX / h);
-      w = Math.round(w * ratio); h = Math.round(h * ratio);
-    }
-    const canvas = document.createElement('canvas');
-    canvas.width = w; canvas.height = h;
-    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-
-    const zxingReader = new ZXing.BrowserMultiFormatReader();
-    const result = await zxingReader.decodeFromCanvas(canvas);
-
-    document.getElementById('isbnInput').value = result.getText();
-    switchSearchTab('isbn');
-    setStatus('✅ 바코드 인식 성공!');
-    await searchByISBN();
-
-  } catch(e) {
-    setStatus('⚠️ 인식 실패. 바코드가 잘 보이게 다시 찍어보거나 ISBN을 직접 입력해주세요.');
-  }
-  input.value = '';
-}
-
-// ── 안드로이드/PC: 실시간 스캔 ──
-async function toggleCamera() {
-  if (cameraActive) { stopCamera(); return; }
-  try {
-    document.getElementById('cameraBtn').textContent = '⏹ 스캔 중지';
-    document.getElementById('cameraBtn').classList.add('scanning');
-    document.getElementById('cameraWrap').classList.add('show');
-    currentStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-    document.getElementById('video').srcObject = currentStream;
-    cameraActive = true;
-    if (typeof ZXing !== 'undefined') {
-      codeReader = new ZXing.BrowserMultiFormatReader();
-      codeReader.decodeFromVideoDevice(null, 'video', (result, err) => {
-        if (result) {
-          document.getElementById('isbnInput').value = result.getText();
-          stopCamera();
-          switchSearchTab('isbn');
-          searchByISBN();
-        }
-      });
-    } else {
-      setStatus('ISBN을 직접 입력해주세요.');
-    }
-  } catch(e) {
-    setStatus('카메라 접근 실패. ISBN을 직접 입력해주세요.');
-    stopCamera();
-  }
-}
-
-function stopCamera() {
-  cameraActive = false;
-  if (codeReader) { try { codeReader.reset(); } catch(e){} codeReader = null; }
-  if (currentStream) { currentStream.getTracks().forEach(t => t.stop()); currentStream = null; }
-  document.getElementById('cameraWrap').classList.remove('show');
-  document.getElementById('cameraBtn').textContent = '📷 카메라로 바코드 스캔';
-  document.getElementById('cameraBtn').classList.remove('scanning');
-}
 
 // ══════════════════════════════════════════
 // 검색
@@ -1970,10 +1881,10 @@ function switchSearchTab(tab) {
   document.getElementById('searchResults').style.display = 'none';
   document.getElementById('bookPreview').classList.remove('show');
   setStatus('');
-  const activeStyle = 'flex:1;padding:8px;border-radius:8px;border:1px solid var(--gold);background:var(--gold);color:#0F0E0C;font-size:12px;font-weight:700;cursor:pointer;font-family:"Noto Sans KR",sans-serif;';
-  const inactiveStyle = 'flex:1;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text-muted);font-size:12px;font-weight:600;cursor:pointer;font-family:"Noto Sans KR",sans-serif;';
-  document.getElementById('tab-isbn').style.cssText = tab === 'isbn' ? activeStyle : inactiveStyle;
+  const activeStyle = 'flex:1;padding:10px;border-radius:8px;border:1px solid var(--gold);background:var(--gold);color:#0F0E0C;font-size:13px;font-weight:700;cursor:pointer;font-family:"Noto Sans KR",sans-serif;';
+  const inactiveStyle = 'flex:1;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text-muted);font-size:13px;font-weight:600;cursor:pointer;font-family:"Noto Sans KR",sans-serif;';
   document.getElementById('tab-title').style.cssText = tab === 'title' ? activeStyle : inactiveStyle;
+  document.getElementById('tab-isbn').style.cssText = tab === 'isbn' ? activeStyle : inactiveStyle;
 }
 
 async function searchByISBN() {
@@ -2123,7 +2034,6 @@ function openModal() {
   resetModal();
 }
 function closeModal() {
-  stopCamera();
   document.getElementById('overlay').classList.remove('open');
 }
 function handleOverlay(e) {
@@ -2134,7 +2044,7 @@ function resetModal() {
   document.getElementById('isbnInput').value = '';
   document.getElementById('titleInput').value = '';
   document.getElementById('searchResults').style.display = 'none';
-  switchSearchTab('isbn');
+  switchSearchTab('title');
   document.getElementById('memoInput').value = '';
   document.getElementById('bookPreview').classList.remove('show');
   document.getElementById('statusMsg').textContent = '';
